@@ -1,1 +1,1 @@
-Teste solicitação via método GET com nodemcu esp8266
+Teste solicitação via método POST com nodemcu esp8266

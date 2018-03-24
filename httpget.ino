@@ -1,20 +1,16 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-
-/*Seta o nome da rede e senha*/ 
-const char* ssid = "Conect wifi";
-const char* password = "assislucas2018";
  
 void setup () {
   //Define a velocidade da comunicação serial
   Serial.begin(115200);
   //inicia a conexão wifi passando o nome da rede e senha
-  WiFi.begin(ssid, password);
+  WiFi.begin("Conect wifi", "assislucas2018");
   //tenta conectar a rede wifi
   while (WiFi.status() != WL_CONNECTED) {
  
-    delay(1000);
-    Serial.print("Connecting..\n");
+    delay(500);
+    Serial.print("trying to connect..\n");
  
   }
  
@@ -28,19 +24,22 @@ void loop() {
     //Declare an object of class HTTPClient
     HTTPClient http;  
     //Specify request destination
-    http.begin("http://jsonplaceholder.typicode.com/users/1");  //link test
-
+    http.begin("http://jsonplaceholder.typicode.com/users");  //link test
+    //Specify content
+    http.addHeader("Content-Type", "text/plain");
+    
     //Send the request and store the response code
-    int httpCode = http.GET();                                                                 
- 
-    if (httpCode > 0) { //Check the returning code
- 
-      String payload = http.getString();   //Get the request response payload
-      Serial.println(payload);             //Print the response payload
- 
-    }
+    int httpCode = http.POST("Hi i'm a ESP8266");                                                                 
+    String payload = http.getString();   //Get the request response payload
+     
+    Serial.println(payload);             //Print the response payload
+    Serial.println(httpCode);             //Print the HTTP response code
  
     http.end();   //Close connection
+ 
+  } else{
+ 
+    Serial.println("Error in WiFi connection");   
  
   }
  
