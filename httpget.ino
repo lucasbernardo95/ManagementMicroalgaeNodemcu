@@ -24,12 +24,13 @@ void loop() {
     //Declare an object of class HTTPClient
     HTTPClient http;  
     //Specify request destination
-    http.begin("http://jsonplaceholder.typicode.com/users");  //link test
+    //http.begin("http://jsonplaceholder.typicode.com/users");  //link test
+    http.begin("http://10.0.8.9:8080/orionrm/esp/list");
     //Specify content
     http.addHeader("Content-Type", "text/plain");
     
     //Send the request and store the response code
-    int httpCode = http.POST("Hi i'm a ESP8266");                                                                 
+    int httpCode = http.POST("");                                                                 
     String payload = http.getString();   //Get the request response payload
      
     Serial.println(payload);             //Print the response payload
