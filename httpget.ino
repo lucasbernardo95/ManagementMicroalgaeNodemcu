@@ -1,49 +1,116 @@
 #include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
- 
-void setup () {
-  //Define a velocidade da comunicação serial
-  Serial.begin(115200);
-  //inicia a conexão wifi passando o nome da rede e senha
-  WiFi.begin("Conect wifi", "assislucas2018");
-  //tenta conectar a rede wifi
-  while (WiFi.status() != WL_CONNECTED) {
- 
-    delay(500);
-    Serial.print("trying to connect..\n");
- 
-  }
- 
-}
- 
-void loop() {
+#include <PubSubClient.h>
 
-  //Check WiFi connection status
-  if (WiFi.status() == WL_CONNECTED) { 
-    
-    //Declare an object of class HTTPClient
-    HTTPClient http;  
-    //Specify request destination
-    //http.begin("http://jsonplaceholder.typicode.com/users");  //link test
-    http.begin("http://10.0.8.9:8080/orionrm/esp/list");
-    //Specify content
-    http.addHeader("Content-Type", "text/plain");
-    
-    //Send the request and store the response code
-    int httpCode = http.POST("");                                                                 
-    String payload = http.getString();   //Get the request response payload
-     
-    Serial.println(payload);             //Print the response payload
-    Serial.println(httpCode);             //Print the HTTP response code
- 
-    http.end();   //Close connection
- 
-  } else{
- 
-    Serial.println("Error in WiFi connection");   
- 
+
+const char* SSID = "LucasBernardo"; // rede wifi
+const char* PASSWORD = "mede5reaisquetedigo"; // senha da rede wifi
+
+const char* BROKER = "test.mosquitto.org";
+int BROKER_PORT = 1883; 
+
+#define LED D0
+#define WAIT D1
+
+// prototypes
+void initPins();
+void initSerial();
+void initWiFi();
+void initMQTT();
+
+WiFiClient espClient;
+PubSubClient MQTT(espClient); // instancia o mqtt
+
+void setup() {
+  initPins();
+  initSerial();
+  initWiFi();
+  initMQTT();
+}
+
+void loop() {
+  digitalWrite(LED, HIGH);
+  if (!MQTT.connected()) {
+    reconnectMQTT();//tenta conectar ao servidor broker
   }
- 
-  delay(10000);    //Send a request every 10 seconds
- 
+  delay(1000);
+  digitalWrite(LED, LOW);
+  delay(1000);
+  Serial.println("MQTT loop...");
+  //recconectWiFi();//conecta a rede wifi
+  MQTT.loop();
+}
+
+// implementacao dos prototypes
+
+void initPins() {
+  pinMode(LED, OUTPUT);
+  pinMode(WAIT, OUTPUT);
+  digitalWrite(LED, 0);
+  digitalWrite(WAIT, 0);
+}
+
+void initSerial() {
+  Serial.begin(115200);
+}
+
+void initWiFi() {
+  delay(10);
+  Serial.println("Conectando-se em: " + String(SSID));
+
+  
+  WiFi.begin(SSID, PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(WAIT, HIGH);
+    delay(100);
+    digitalWrite(WAIT, LOW);
+    delay(100);
+  }
+  Serial.println();
+  Serial.print("Conectado na Rede " + String(SSID) + " | IP => ");
+  Serial.println(WiFi.localIP());
+}
+
+// Funcão para se conectar ao Broker MQTT
+void initMQTT() {
+  Serial.println("initMQTT begin!!!");
+  MQTT.setServer(BROKER, BROKER_PORT);//seta a porta e o endereço do broker
+  MQTT.setCallback(mqtt_callback);//faz uma chamada ao broker
+}
+
+//Função que recebe as mensagens publicadas
+void mqtt_callback(char* topic, byte* payload, unsigned int length) {
+
+  String message;
+  for (int i = 0; i < length; i++) {
+    char c = (char)payload[i];
+    message += c;
+  }
+  Serial.println("Tópico => " + String(topic) + " | Valor => " + String(message));
+  if (message == "1") {
+    digitalWrite(LED, 1);
+  } else {
+    digitalWrite(LED, 0);
+  }
+  Serial.flush();
+}
+
+void reconnectMQTT() {
+  while (!MQTT.connected()) {
+    Serial.println("Tentando se conectar ao Broker MQTT: " + String(BROKER));
+    if (MQTT.connect("ESP8266-ESP12")) {
+      Serial.println("Conectado");
+      MQTT.subscribe("temp/random");
+    } else {
+      Serial.println("Falha ao Reconectar");
+      Serial.println("Tentando se reconectar em 2 segundos");
+      delay(2000);
+    }
+  }
+}
+
+void recconectWiFi() {
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
 }
