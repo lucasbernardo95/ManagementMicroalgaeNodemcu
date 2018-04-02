@@ -8,6 +8,7 @@ const char* PASSWORD = "mede5reaisquetedigo"; // senha da rede wifi
 const char* BROKER = "test.mosquitto.org";
 int BROKER_PORT = 1883; 
 
+#define TOPICO_PUBLISH   "estado"
 #define LED D0
 #define WAIT D1
 
@@ -106,6 +107,17 @@ void reconnectMQTT() {
       delay(2000);
     }
   }
+}
+
+void EnviaEstadoOutputMQTT(void){
+    if (EstadoSaida == '0')
+      MQTT.publish(TOPICO_PUBLISH, "D");
+ 
+    if (EstadoSaida == '1')
+      MQTT.publish(TOPICO_PUBLISH, "L");
+ 
+    Serial.println("- Estado da saida D0 enviado ao broker!");
+    delay(1000);
 }
 
 void recconectWiFi() {
