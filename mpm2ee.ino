@@ -2,6 +2,11 @@
  *                    MPM2EE         
  * Middleware for Policy Management and Energy Economics 
  * Middleware para Gerenciamento de Políticas de Economia de Energia
+ * 
+ * Rede: notebook
+ * desa.. fw p/ rece pública 
+ * 
+ * broker local "mosquito"
  */
 #include <ESP8266WiFi.h>            //uso do módulo wifi
 #include <ESP8266HTTPClient.h>      //uso da lib http
@@ -14,14 +19,14 @@ WiFiClient WiFiclient;              //instÂncia do Clientewifi
 PubSubClient client(WiFiclient);    //instância do cliente mqtt
 
 long previousMillis = 0;            //Variável de controle do tempo
-long timeOutColeta = 20000;         //Tempo em ms do intervalo a ser executado a função salveSensorDate
+long timeOutColeta = 60000;         //Tempo em ms do intervalo a ser executado a função salveSensorDate
 
 /*===========================Declaração de protótipos de funções============================*/
-bool startWifi();                    //Inicia o wifi e tenta contectar
+void startWifi();                    //Inicia o wifi e tenta contectar
 void startMqtt();                   //inicia o Mqtt
 void tryReconectMQTT();              //tenta conectar ao broker
 void tryReconectWifi();              //Tenta reconectar à rede wifi
-void salveSensorDate();              //Chama o método cadastrar do middleware para salvar os dados dos sensores
+void sendSensorDate();              //Chama o método cadastrar do middleware para salvar os dados dos sensores
 void callBackMqtt(char* topic, byte* payload, unsigned int length); //Função chamada ao detectar a publicação de um dado no tópico inscrito e aplicar uma política
 int getTime();                       //Retorna o tempo de sleep setado ao aplicar uma política
 void setTime(uint8_t timeSleep);     //Função para setar um tempo de sleep
@@ -31,50 +36,49 @@ void switchEEPROM(bool flag);        //Inicia ou encerra a gravação na EEPROM
 /*==========================================================================================*/
 
 /*Seta a configurações necessárias para conectar o wifi e tenta contectar a uma rede*/
-bool startWifi() {
-    Serial.println("======Start Wifi=========\n");
+void startWifi() {
+    Serial.println("========== Start Wifi ==========\n");
     WiFi.persistent(true);
     WiFi.mode(WIFI_OFF); //  Force the ESP into client-only mode (padrão)
     WiFi.mode(WIFI_STA);
 
     int cont = 0;
-    WiFi.begin("Conect wifi", "assislucas2018");
+    WiFi.begin("meu wifi", "naotemsenha");
     
     while (WiFi.status() != WL_CONNECTED) {
         Serial.println("tentando reconectar");
-        delay(1000);
+        delay(1500);
         cont ++;
-        if (cont == 4){
-            return false;
+        if (cont == 8){
+            return;
         }
     }
-    return true;
-    Serial.println("======End Wifi=========\n");
+    Serial.println("========== End Wifi ==========\n");
 }
 
 /*Seta os parâmetros para conexão com o servidor broker*/
 void startMqtt() {
-    Serial.println("======begin startMqtt=========\n");
-    client.setServer("10.0.8.11", 1883);              //local
-    //client.setServer("m14.cloudmqtt.com", 13367);  //cloudmqtt
-    client.setCallback(callBackMqtt);            //faz uma chamada ao broker
-    /*Tenta conectar ao servidor broker, retorna true se tudo ocorrer com sucesso*/
+    Serial.println("========== start Mqtt ==========\n");
+    client.setServer("10.0.8.11", 1883);
+    client.setCallback(callBackMqtt);
+
     int cont = 0;
     while (!client.connected()) {    
-          if (client.connect("ESP8266Client", "esp8266", "esp8266")) {
+          if (client.connect("ESP1")) {
               Serial.println("Conectado");
-              client.subscribe("mpmee/energyPolicy");
+              client.subscribe("mpm2ee/energyPolicy");
           } else {
               Serial.print("Falha: ");      
               Serial.println(client.state());         
-              delay(1000);
-              cont++;
-              if(cont == 7)
+              delay(2000);
+              cont ++;
+              if (cont == 7)
                   break;
           }
-     }Serial.println("======END startMqtt==========\n");
+     }Serial.println("========== End startMqtt ==========\n");
 }
 
+//tenta reconectar aoa broker
 void tryReconectMQTT() {
     if (client.connected()){
         return;
@@ -86,7 +90,7 @@ void tryReconectMQTT() {
           delay(2000);
           if (client.connect("ESP8266Client", "esp8266", "esp8266")) {
               Serial.println("Conectado");
-              client.subscribe("mpmee/energyPolicy");
+              client.subscribe("mpm2ee/energyPolicy");
           } else {
               Serial.print("Falha: ");      
               Serial.println(client.state());         
@@ -97,7 +101,9 @@ void tryReconectMQTT() {
      }
 }
 
+//tenta reconectar à rede wifi
 void tryReconectWifi() {
+    
     if (WiFi.status() == WL_CONNECTED){
         return;
     }
@@ -110,20 +116,26 @@ void tryReconectWifi() {
             delay(1500);
             cont++;
             if (cont == 7)
-              break;
+                break;
             }
     }
 }
 
-void salveSensorDate() {
-    Serial.println("======begin salveSensorDate=========\n");
+//faz uma requisição http para o middleware e envia os dados dos sensores via post
+void sendSensorDate() {
+    Serial.println("==================== start send data ====================\n");
     HTTPClient http;                                    //Declara um objeto da classe HTTPClient
-    delay(10000);  //10.0.8.13
-    http.begin("http://10.0.8.11:8085/mpm2ee/esp");  //Especifica o destino da solicitação (endereço do serviço)
+    http.begin("http://10.0.8.11:8085/mpm2ee/esp");     //Especifica o destino da solicitação (endereço do serviço)
     http.addHeader("Content-Type", "application/json"); //Informa os detalhes da requisição (json)
     http.addHeader("Accept", "application/json");       
+    http.POST(getSensores ());                          //Envia os dados dos sensores
+    http.end();                                         //Encerra a conexão http
+    Serial.println("==================== End send data ====================\n");
+}
+
+//captura os dados dos sensores e monta um json
+String getSensores () {
     Serial.println("criando objetos");
-    //Informa os dados do node
     StaticJsonBuffer<300> jsonBuffer;
     JsonObject& node = jsonBuffer.createObject();
     node["id"] = "ESP1";
@@ -163,15 +175,9 @@ void salveSensorDate() {
     sensores.add(energia);
     
     String sms;
-    delay(100); 
     node.printTo(sms);             //Printa os dados dos sensores
-    delay(100); 
-    //Envia o pedido com os dados dos sensores a serem salvos no firebase e recebe a resposta do serviço
-    int httpCode = http.POST(sms); 
-    //String payload = http.getString();   //Get the request response payload
-    http.end();                   //Encerra a conexão http
-    delay(10000); 
-    Serial.println("======END salveSensorDate=========\n");
+    Serial.println(sms);
+    return sms;
 }
 
 /* *
@@ -198,7 +204,7 @@ void callBackMqtt(char* topic, byte* payload, unsigned int length) {
         //altera o valor da eeprom, para evitar entrar em deepsleep caso tenha entrado alguma vez
         uint8_t modesleep = 1;         
         setModeSleep(modesleep);//seta o modo de sono
-        wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
+        wifi_fpm_set_sleep_type(LIGHT_SLEEP_T); //https://github.com/esp8266/Arduino/issues/1381
     } else {
           //pega o valor STRING_C da string recebida e converte para uint8_t
           //o valor recebido deverá ser apenas um inteiro representando quantos
@@ -218,33 +224,34 @@ void callBackMqtt(char* topic, byte* payload, unsigned int length) {
 
 void setup() {
     Serial.begin(115200);         //velocidade da comunicação serial
-    Serial.setTimeout(2000);
-    //Wait for serial to initialize.
-    while(!Serial) { }
+    Serial.setTimeout(2000);      //deley de 2s
+    while(!Serial) { }            //Wait for serial to initialize.
     startWifi();                  //Inicia o wifi
-    startMqtt();                 //Seta oos parâmetros para conexão com o broker e tenta contectar
+    startMqtt();                  //Seta oos parâmetros para conexão com o broker e tenta contectar
 }
 
+//a cada 1 minuto, definido em timeOutColeta, o nó envia os dados dos sensores ao middleware e, 
+//se o deepsleep tiver aplicado em algum momento o nó irá dormir por um intervalo definido na política
 void loop() {
     unsigned long currentMillis = millis();                //Tempo atual em ms => millis() seu valor é zerado em 49 À 50 dias //millis() o tempo que o arduino está ligado
 
     tryReconectWifi();
-    
     tryReconectMQTT();
     
     client.loop();                                         //Chama o loop do client mqtt para ouvir a rede
     
-    if (currentMillis - previousMillis >= timeOutColeta) {//Verifica se o tempo esgotou
+    if (currentMillis - previousMillis >= timeOutColeta) { //Verifica se o tempo desgotou
         previousMillis = currentMillis;                    // Salva o tempo atual
-        salveSensorDate();                                 //Salva os dados sensores   
-        delay(500);
+        sendSensorDate();            //envia os dados dos sensores
         if (getModeSleep() == 2) {                         //se o modo for 2, quer dizer que deve entrar em deepsleep
             int tempo = getTime();                         //recebe o tempo que deverá dormir
+            if (tempo <= 0)
+                tempo = 1;
             Serial.print("entrando em deepsleep por ");
             Serial.print(tempo * 60000000);
             Serial.println(" segundos");
-            //Sleep for 120 seconds, then wakeup and send data again
-              ESP.deepSleep(tempo * 60000000, WAKE_RF_DEFAULT);                       //entra em deepsleep 60000000 = 60 segundos = 1 minuto
+            //Sleep for x seconds, then wakeup and send data again
+            ESP.deepSleep(tempo * 60000000, WAKE_RF_DEFAULT);                       //entra em deepsleep 60000000 = 60 segundos = 1 minuto
         }
     }
 }
